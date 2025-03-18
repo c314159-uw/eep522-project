@@ -26,7 +26,13 @@ picam2.start()
 im = picam2.capture_array()
 
 hsv = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)
-mask = cv2.inRange(hsv, (0,70,60), (80,255,255))
+# low, high = (35, 70, 120), (50, 155, 255)
+low, high = (25, 80, 120), (35, 155, 225)
+premask = cv2.inRange(hsv, low, high)
+
+element = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (8,8))
+mask = cv2.erode(premask, element, iterations=5)
+mask = cv2.dilate(mask, element, iterations=5)
 
 # print(im[:3, :3])
 
@@ -35,3 +41,5 @@ mask = cv2.inRange(hsv, (0,70,60), (80,255,255))
 # cv2.imwrite("base.png", im)
 # cv2.imwrite("mask.png", mask)
 cv2.imwrite("ballcolortest.png", im)
+cv2.imwrite("ballcolormask.png", premask)
+cv2.imwrite("ballcolorpost.png", mask)

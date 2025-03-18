@@ -33,6 +33,8 @@ def deadband(value, threshold):
     return value
 
 def tank_drive(m1, m2):
+    # m1 is right, + is backward
+    # m2 is left, + is forward
     m1 = deadband(clamp(m1, -1, 1), 0.2)
     m2 = deadband(clamp(m2, -1, 1), 0.2)
     GPIO.output(in1, GPIO.HIGH if m1 > 0 else GPIO.LOW)
@@ -52,38 +54,42 @@ camera.start()
 def find_ball(image, color):
     out = image.copy()
     success = False
-    cx, cy = None, None
+    cx, cy, a = None, None, None
     
+    # a dictionary would be more effective
     if color == "orange":
         low, high = (5, 170, 150), (15, 255, 255)
     else:
         low, high = (35, 170, 150), (50, 255, 255)
+        
+    low, high = (25, 70, 110), (35, 155, 225)
             
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(hsv, low, high)
+    element = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (8,8))
+    mask = cv2.erode(mask, element, iterations=3)
+    mask = cv2.dilate(mask, element, iterations=3)
     
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if len(contours) > 0:
         max_c = max(contours, key=cv2.contourArea)
-        if cv2.contourArea(max_c) > 0:
+        if (a := cv2.contourArea(max_c)) > 0:
             cv2.drawContours(out, [max_c], 0, (0,255,0, 255), 2)
             M = cv2.moments(max_c)
             cx = int(M['m10']/M['m00'])
             cy = int(M['m01']/M['m00'])
             success = True
         
-    return success, out, (cx, cy)
+    return success, out, (cx, cy), a
 
 def mainloop():
     im = camera.capture_array()
-    found, overlay, c = find_ball(im, "orange")
-    found2, overlay2, c2 = find_ball(im, "yellow")
-    print(f"{c=} {c2=}")
-    if found:
-        cx, cy = c
-        tank_drive((cx-320)/320, (320-cx)/320)
-    elif found2:
-        tank_drive(-0.8, 0.8)
+    success, overlay, center, area = find_ball(im, None)
+    print(f"{center=} {area=}")
+    if success:
+        cx, cy = center
+        tank_drive((cx-320)/320 - 20/area**0.5, (cx-320)/320 + 20/area**0.5)
+        # tank_drive(0, 50/area**0.5)
     else:
         tank_drive(0, 0)
 
